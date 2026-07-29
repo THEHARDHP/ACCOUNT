@@ -19,9 +19,9 @@ const client = new Client({
     }
 });
 
-// જ્યારે નવો QR કોડ જનરેટ થાય ત્યારે ટર્મિનલ/લોગ્સમાં બતાવો
 client.on('qr', (qr) => {
-    console.log('નવો QR કોડ જનરેટ થયો છે! કૃપા કરીને સ્કેન કરો:');
+    console.log('નીચેનો લાંબો કોડ કોપી કરો:');
+    console.log(qr); // આ લાઈન નવી ઉમેરી છે, જે અસલી ડેટા આપશે
     qrcode.generate(qr, { small: true });
 });
 
