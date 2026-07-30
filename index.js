@@ -3,6 +3,7 @@ const express = require('express');
 const qrcode = require('qrcode');
 
 const app = express();
+// Railway જાતે PORT આપે છે, નહીંતર 3000 વાપરશે
 const port = process.env.PORT || 3000;
 let qrData = ''; // આમાં QR કોડની ઇમેજ લિંક સેવ થશે
 
@@ -29,11 +30,6 @@ app.get('/', (req, res) => {
             </html>
         `);
     }
-});
-
-// Express વેબ સર્વર ચાલુ કરો
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Web server is running on port ${port}`);
 });
 
 // Railway માટે ખાસ બ્રાઉઝર સેટિંગ્સ (જેથી એરર ના આવે)
@@ -82,5 +78,11 @@ client.on('disconnected', (reason) => {
     console.log('WhatsApp કનેક્શન તૂટી ગયું છે. કારણ:', reason);
 });
 
-// ક્લાયન્ટ ચાલુ કરો
-client.initialize();
+// અગત્યનો સુધારો: પહેલા વેબ સર્વર ચાલુ કરો, પછી WhatsApp બોટ ચાલુ કરો
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Web server is successfully running on port ${port}`);
+    console.log('હવે WhatsApp બોટ ચાલુ થઈ રહ્યો છે...');
+    
+    // ક્લાયન્ટ (બોટ) હવે ચાલુ થશે
+    client.initialize();
+});
