@@ -32,7 +32,7 @@ app.get('/', (req, res) => {
 });
 
 // Express વેબ સર્વર ચાલુ કરો
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
     console.log(`Web server is running on port ${port}`);
 });
 
