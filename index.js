@@ -60,11 +60,12 @@ app.post('/send', async (req, res) => {
 });
 // ==========================================================
 
-// Railway માટે સેટિંગ્સ (અહીથી '--single-process' કાઢી નાખ્યું છે જેથી સર્વર ક્રેશ ના થાય)
+/ Railway માટે સેટિંગ્સ
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
+        protocolTimeout: 300000, // <--- આ લાઈન નવી ઉમેરી છે (૫ મિનિટ સુધી ટાઈમઆઉટ નહીં થાય)
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox', 
