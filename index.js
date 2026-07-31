@@ -60,7 +60,7 @@ app.post('/send', async (req, res) => {
 });
 // ==========================================================
 
-/ Railway માટે સેટિંગ્સ
+// Railway માટે સેટિંગ્સ
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
