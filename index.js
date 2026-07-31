@@ -60,7 +60,7 @@ app.post('/send', async (req, res) => {
 });
 // ==========================================================
 
-// Railway માટે સેટિંગ્સ
+// Railway માટે સેટિંગ્સ (અહીથી '--single-process' કાઢી નાખ્યું છે જેથી સર્વર ક્રેશ ના થાય)
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -72,7 +72,6 @@ const client = new Client({
             '--disable-accelerated-2d-canvas', 
             '--no-first-run', 
             '--no-zygote', 
-            '--single-process', 
             '--disable-gpu'
         ],
     }
