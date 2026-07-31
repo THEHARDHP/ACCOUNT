@@ -6,7 +6,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 let qrData = ''; 
 
-// અગત્યનું: ફોટો/PDF (Base64) મોકલવા માટે JSON લિમિટ વધારવી જરૂરી છે (50MB)
+// ફોટો/PDF (Base64) મોકલવા માટે JSON લિમિટ (50MB)
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -28,7 +28,7 @@ app.post('/send', async (req, res) => {
     }
 
     try {
-        // નંબરને WhatsApp ના ફોર્મેટમાં ફેરવો (દા.ત. 10 આંકડા હોય તો આગળ 91 લગાવો)
+        // નંબરને WhatsApp ના ફોર્મેટમાં ફેરવો
         let formattedNumber = number.toString().replace(/[^0-9]/g, ''); 
         if (formattedNumber.length === 10) {
             formattedNumber = '91' + formattedNumber;
@@ -60,12 +60,12 @@ app.post('/send', async (req, res) => {
 });
 // ==========================================================
 
-// Railway માટે સેટિંગ્સ
+// Render માટે મેમરી સેવિંગ સેટિંગ્સ (અલ્ટ્રા લાઈટવેઇટ)
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
         headless: true,
-        protocolTimeout: 300000, // <--- આ લાઈન નવી ઉમેરી છે (૫ મિનિટ સુધી ટાઈમઆઉટ નહીં થાય)
+        protocolTimeout: 300000, 
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox', 
@@ -73,7 +73,9 @@ const client = new Client({
             '--disable-accelerated-2d-canvas', 
             '--no-first-run', 
             '--no-zygote', 
-            '--disable-gpu'
+            '--disable-gpu',
+            '--single-process',     // <--- આ કમાન્ડ 512 MB થી ઓછી રેમ વાપરશે
+            '--disable-extensions'  // <--- વધારાના એક્સ્ટેન્શન બંધ કરી દેશે
         ],
     }
 });
