@@ -15,16 +15,14 @@ let isConnected = false;
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
     
-    // 🌟 નવો સુધારો: WhatsApp નું લેટેસ્ટ વર્ઝન જાતે જ શોધી લેશે
     const { version } = await fetchLatestBaileysVersion();
     console.log(`WhatsApp લેટેસ્ટ વર્ઝન વાપરી રહ્યા છીએ: v${version.join('.')}`);
 
     sock = makeWASocket({
-        version, // વર્ઝન અહીં સેટ કર્યું
+        version,
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }), 
-        // 🌟 નવો સુધારો: એકદમ અસલી Mac કમ્પ્યુટર જેવું બ્રાઉઝર સેટિંગ
         browser: Browsers.macOS('Desktop')
     });
 
@@ -45,18 +43,18 @@ async function connectToWhatsApp() {
             console.log('❌ WhatsApp ડિસ્કાનેક્ટ થયું. એરર કોડ:', statusCode || 'undefined');
             isConnected = false;
 
-            // જો એરર આવે તો જૂનો ડેટા કાઢીને ફરીથી ટ્રાય કરશે
-            if (statusCode === 401 || statusCode === 403 || statusCode === 500 || statusCode === undefined || !shouldReconnect) {
-                console.log('🗑️ જૂનો કરપ્ટ ડેટા ડિલીટ કરી રહ્યા છીએ...');
+            // 🌟 નવો ફેરફાર: હવે માત્ર 401 કે 403 (Logout) આવે તો જ ડેટા ડિલીટ થશે, undefined માં નહીં!
+            if (statusCode === 401 || statusCode === 403) {
+                console.log('🛑 એકાઉન્ટ લૉગઆઉટ થઈ ગયું છે. જૂનો ડેટા ડિલીટ કરી રહ્યા છીએ...');
                 try {
                     if (fs.existsSync('./auth_info')) {
                         fs.rmSync('./auth_info', { recursive: true, force: true });
                     }
                 } catch(e) {}
-                
-                console.log('🔄 ફ્રેશ સિસ્ટમ રીસ્ટાર્ટ થઈ રહી છે...');
+                currentQR = "";
                 setTimeout(() => connectToWhatsApp(), 3000);
-            } else {
+            } else if (shouldReconnect) {
+                console.log('🔄 નેટવર્ક એરર. ફરીથી કનેક્ટ કરવાનો પ્રયાસ કરી રહ્યા છીએ (ડેટા સાચવીને)...');
                 setTimeout(() => connectToWhatsApp(), 5000);
             }
             
@@ -81,7 +79,7 @@ app.get('/reset', (req, res) => {
         if (fs.existsSync('./auth_info')) {
             fs.rmSync('./auth_info', { recursive: true, force: true });
         }
-        res.send('✅ સિસ્ટમ રીસેટ થઈ ગઈ છે. જૂનો ડેટા ડિલીટ થઈ ગયો છે. હવે Render માંથી સર્વર Restart કરો.');
+        res.send('✅ સિસ્ટમ રીસેટ થઈ ગઈ છે. હવે Render માંથી સર્વર Restart કરો.');
     } catch(e) {
         res.send('❌ રીસેટ કરવામાં ભૂલ આવી.');
     }
@@ -103,7 +101,7 @@ app.get('/qr', (req, res) => {
                 <div style="text-align:center; background:white; padding:30px; border-radius:15px; box-shadow:0 10px 25px rgba(0,0,0,0.1);">
                     <h2 style="color: #4F46E5; margin-top:0;">WhatsApp કનેક્ટ કરો</h2>
                     <img src="${currentQR}" alt="QR Code" style="margin: 20px 0; border: 2px solid #E2E8F0; border-radius: 10px; width: 250px; height: 250px;"/>
-                    <p style="font-size: 16px; font-weight: bold; color: #1E293B;">આ નવો કોડ સ્કેન કરો</p>
+                    <p style="font-size: 16px; font-weight: bold; color: #1E293B;">આ કોડ સ્કેન કરો</p>
                 </div>
             </div>
         `);
