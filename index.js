@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const express = require('express');
 const pino = require('pino');
 const qrcode = require('qrcode');
+const fs = require('fs'); // નવું: ફોલ્ડર ડિલીટ કરવા માટે
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -17,8 +18,9 @@ async function connectToWhatsApp() {
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        logger: pino({ level: 'silent' }), // વધારાના લોગ્સ બંધ રાખવા
-        browser: ["ProSender CRM", "Chrome", "1.0.0"]
+        logger: pino({ level: 'silent' }), 
+        // 🌟 અહીં આપણે સ્ટાન્ડર્ડ બ્રાઉઝરનું નામ વાપરીશું જેથી WhatsApp બ્લોક ના કરે
+        browser: ["Ubuntu", "Chrome", "20.0.04"] 
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -27,24 +29,32 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
         
         if (qr) {
-            console.log("નવો QR કોડ આવ્યો છે! /qr લિંક પર જઈને ચેક કરો.");
+            console.log("✅ નવો QR કોડ આવી ગયો છે! /qr લિંક પર જઈને ચેક કરો.");
             currentQR = await qrcode.toDataURL(qr); 
         }
         
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('❌ WhatsApp ડિસ્કાનેક્ટ થયું. ફરીથી કનેક્ટ કરવાનો પ્રયાસ:', shouldReconnect);
-            isConnected = false;
+            const statusCode = (lastDisconnect.error)?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
-            if (shouldReconnect) {
-                // સર્વર ક્રેશ ના થાય તે માટે 5 સેકન્ડનો બ્રેક (Delay)
-                setTimeout(() => {
-                    console.log('🔄 ફરીથી કનેક્ટ થઈ રહ્યું છે...');
-                    connectToWhatsApp();
-                }, 5000);
+            console.log('❌ WhatsApp ડિસ્કાનેક્ટ થયું. એરર કોડ:', statusCode);
+            isConnected = false;
+
+            // જો 401 (Unauthorized) કે બીજી કોઈ એરર આવે તો કરપ્ટ ફોલ્ડર જાતે જ ડિલીટ કરી નાખશે
+            if (statusCode === 401 || statusCode === 403 || statusCode === 500 || !shouldReconnect) {
+                console.log('🗑️ જૂનો કરપ્ટ ડેટા ડિલીટ કરી રહ્યા છીએ...');
+                try {
+                    if (fs.existsSync('./auth_info')) {
+                        fs.rmSync('./auth_info', { recursive: true, force: true });
+                    }
+                } catch(e) { console.log('Delete Error:', e); }
+                
+                console.log('🔄 ફ્રેશ સિસ્ટમ રીસ્ટાર્ટ થઈ રહી છે...');
+                setTimeout(() => connectToWhatsApp(), 3000);
             } else {
-                console.log('🛑 લોગઆઉટ થઈ ગયું છે. તમારે ફરીથી QR સ્કેન કરવો પડશે.');
+                setTimeout(() => connectToWhatsApp(), 5000);
             }
+            
         } else if (connection === 'open') {
             console.log('✅ WhatsApp સફળતાપૂર્વક કનેક્ટ થઈ ગયું છે!');
             currentQR = "";
@@ -59,6 +69,18 @@ connectToWhatsApp();
 
 app.get('/', (req, res) => {
     res.send('WhatsApp Baileys સર્વર ચાલુ છે!');
+});
+
+// 🌟 કટોકટીમાં મેન્યુઅલ રીસેટ કરવા માટે નવી લિંક 🌟
+app.get('/reset', (req, res) => {
+    try {
+        if (fs.existsSync('./auth_info')) {
+            fs.rmSync('./auth_info', { recursive: true, force: true });
+        }
+        res.send('✅ સિસ્ટમ રીસેટ થઈ ગઈ છે. જૂનો ડેટા ડિલીટ થઈ ગયો છે. હવે Render માંથી સર્વર Restart કરો.');
+    } catch(e) {
+        res.send('❌ રીસેટ કરવામાં ભૂલ આવી.');
+    }
 });
 
 app.get('/qr', (req, res) => {
