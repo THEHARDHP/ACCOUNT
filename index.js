@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const express = require('express');
 const pino = require('pino');
 const qrcode = require('qrcode');
@@ -23,7 +23,8 @@ async function connectToWhatsApp() {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }), 
-        browser: Browsers.macOS('Desktop')
+        // બ્રાઉઝરનું નામ ડિફોલ્ટ રાખીએ છીએ જેથી WhatsApp બ્લોક ના કરે
+        browser: ['Ubuntu', 'Chrome', '20.0.04']
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -43,9 +44,10 @@ async function connectToWhatsApp() {
             console.log('❌ WhatsApp ડિસ્કાનેક્ટ થયું. એરર કોડ:', statusCode || 'undefined');
             isConnected = false;
 
-            // 🌟 નવો ફેરફાર: હવે માત્ર 401 કે 403 (Logout) આવે તો જ ડેટા ડિલીટ થશે, undefined માં નહીં!
-            if (statusCode === 401 || statusCode === 403) {
-                console.log('🛑 એકાઉન્ટ લૉગઆઉટ થઈ ગયું છે. જૂનો ડેટા ડિલીટ કરી રહ્યા છીએ...');
+            // 🌟 નવો સૌથી મહત્વનો ફેરફાર: 
+            // જો 401/403 હોય અથવા (undefined એરર આવે અને હજુ સુધી QR કોડ ના આવ્યો હોય) તો ફાઇલો ડિલીટ કરો!
+            if (statusCode === 401 || statusCode === 403 || (statusCode === undefined && currentQR === "")) {
+                console.log('🛑 કનેક્શન શરૂઆતમાં જ ફેલ ગયું. ખરાબ ડેટા ડિલીટ કરી રહ્યા છીએ...');
                 try {
                     if (fs.existsSync('./auth_info')) {
                         fs.rmSync('./auth_info', { recursive: true, force: true });
@@ -109,7 +111,7 @@ app.get('/qr', (req, res) => {
         res.send(`
             <div style="text-align: center; font-family: sans-serif; margin-top: 50px;">
                 <h2>QR કોડ જનરેટ થઈ રહ્યો છે...</h2>
-                <p>કૃપા કરીને 5 સેકન્ડ પછી પેજ <b>રિફ્રેશ (Refresh)</b> કરો.</p>
+                <p>કૃપા કરીને થોડી રાહ જુઓ અને પેજ <b>રિફ્રેશ (Refresh)</b> કરો.</p>
             </div>
         `);
     }
