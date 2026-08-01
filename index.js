@@ -1,8 +1,8 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const express = require('express');
 const pino = require('pino');
 const qrcode = require('qrcode');
-const fs = require('fs'); // નવું: ફોલ્ડર ડિલીટ કરવા માટે
+const fs = require('fs');
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -14,13 +14,18 @@ let isConnected = false;
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+    
+    // 🌟 નવો સુધારો: WhatsApp નું લેટેસ્ટ વર્ઝન જાતે જ શોધી લેશે
+    const { version } = await fetchLatestBaileysVersion();
+    console.log(`WhatsApp લેટેસ્ટ વર્ઝન વાપરી રહ્યા છીએ: v${version.join('.')}`);
 
     sock = makeWASocket({
+        version, // વર્ઝન અહીં સેટ કર્યું
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }), 
-        // 🌟 અહીં આપણે સ્ટાન્ડર્ડ બ્રાઉઝરનું નામ વાપરીશું જેથી WhatsApp બ્લોક ના કરે
-        browser: ["Ubuntu", "Chrome", "20.0.04"] 
+        // 🌟 નવો સુધારો: એકદમ અસલી Mac કમ્પ્યુટર જેવું બ્રાઉઝર સેટિંગ
+        browser: Browsers.macOS('Desktop')
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -37,17 +42,17 @@ async function connectToWhatsApp() {
             const statusCode = (lastDisconnect.error)?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
-            console.log('❌ WhatsApp ડિસ્કાનેક્ટ થયું. એરર કોડ:', statusCode);
+            console.log('❌ WhatsApp ડિસ્કાનેક્ટ થયું. એરર કોડ:', statusCode || 'undefined');
             isConnected = false;
 
-            // જો 401 (Unauthorized) કે બીજી કોઈ એરર આવે તો કરપ્ટ ફોલ્ડર જાતે જ ડિલીટ કરી નાખશે
-            if (statusCode === 401 || statusCode === 403 || statusCode === 500 || !shouldReconnect) {
+            // જો એરર આવે તો જૂનો ડેટા કાઢીને ફરીથી ટ્રાય કરશે
+            if (statusCode === 401 || statusCode === 403 || statusCode === 500 || statusCode === undefined || !shouldReconnect) {
                 console.log('🗑️ જૂનો કરપ્ટ ડેટા ડિલીટ કરી રહ્યા છીએ...');
                 try {
                     if (fs.existsSync('./auth_info')) {
                         fs.rmSync('./auth_info', { recursive: true, force: true });
                     }
-                } catch(e) { console.log('Delete Error:', e); }
+                } catch(e) {}
                 
                 console.log('🔄 ફ્રેશ સિસ્ટમ રીસ્ટાર્ટ થઈ રહી છે...');
                 setTimeout(() => connectToWhatsApp(), 3000);
@@ -71,7 +76,6 @@ app.get('/', (req, res) => {
     res.send('WhatsApp Baileys સર્વર ચાલુ છે!');
 });
 
-// 🌟 કટોકટીમાં મેન્યુઅલ રીસેટ કરવા માટે નવી લિંક 🌟
 app.get('/reset', (req, res) => {
     try {
         if (fs.existsSync('./auth_info')) {
