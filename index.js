@@ -12,13 +12,12 @@ let sock;
 let isConnected = false;
 
 async function connectToWhatsApp() {
-    // આ લાઈન લોગીન ડેટાને 'auth_info' ફોલ્ડરમાં સેવ કરશે
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
 
     sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        logger: pino({ level: 'silent' }), // વધારાના લોગ્સ બંધ કરવા
+        logger: pino({ level: 'silent' }), // વધારાના લોગ્સ બંધ રાખવા
         browser: ["ProSender CRM", "Chrome", "1.0.0"]
     });
 
@@ -29,15 +28,22 @@ async function connectToWhatsApp() {
         
         if (qr) {
             console.log("નવો QR કોડ આવ્યો છે! /qr લિંક પર જઈને ચેક કરો.");
-            currentQR = await qrcode.toDataURL(qr); // બ્રાઉઝર માટે QR જનરેટ કરો
+            currentQR = await qrcode.toDataURL(qr); 
         }
         
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('WhatsApp ડિસ્કાનેક્ટ થયું. ફરીથી કનેક્ટ કરવાનો પ્રયાસ:', shouldReconnect);
+            console.log('❌ WhatsApp ડિસ્કાનેક્ટ થયું. ફરીથી કનેક્ટ કરવાનો પ્રયાસ:', shouldReconnect);
             isConnected = false;
+            
             if (shouldReconnect) {
-                connectToWhatsApp();
+                // સર્વર ક્રેશ ના થાય તે માટે 5 સેકન્ડનો બ્રેક (Delay)
+                setTimeout(() => {
+                    console.log('🔄 ફરીથી કનેક્ટ થઈ રહ્યું છે...');
+                    connectToWhatsApp();
+                }, 5000);
+            } else {
+                console.log('🛑 લોગઆઉટ થઈ ગયું છે. તમારે ફરીથી QR સ્કેન કરવો પડશે.');
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp સફળતાપૂર્વક કનેક્ટ થઈ ગયું છે!');
@@ -47,16 +53,14 @@ async function connectToWhatsApp() {
     });
 }
 
-// WhatsApp સિસ્ટમ શરૂ કરો
 connectToWhatsApp();
 
 // ================= API ENDPOINTS =================
 
 app.get('/', (req, res) => {
-    res.send('WhatsApp Baileys સર્વર સુપરફાસ્ટ સ્પીડમાં ચાલુ છે!');
+    res.send('WhatsApp Baileys સર્વર ચાલુ છે!');
 });
 
-// બ્રાઉઝરમાં સ્કેન કરવા માટે
 app.get('/qr', (req, res) => {
     if (isConnected) {
         return res.send(`
@@ -73,7 +77,7 @@ app.get('/qr', (req, res) => {
                 <div style="text-align:center; background:white; padding:30px; border-radius:15px; box-shadow:0 10px 25px rgba(0,0,0,0.1);">
                     <h2 style="color: #4F46E5; margin-top:0;">WhatsApp કનેક્ટ કરો</h2>
                     <img src="${currentQR}" alt="QR Code" style="margin: 20px 0; border: 2px solid #E2E8F0; border-radius: 10px; width: 250px; height: 250px;"/>
-                    <p style="font-size: 16px; font-weight: bold; color: #1E293B;">આ કોડ સ્કેન કરો (RAM ક્રેશ નહીં થાય!)</p>
+                    <p style="font-size: 16px; font-weight: bold; color: #1E293B;">આ નવો કોડ સ્કેન કરો</p>
                 </div>
             </div>
         `);
@@ -87,7 +91,6 @@ app.get('/qr', (req, res) => {
     }
 });
 
-// મેસેજ મોકલવાની મેઇન API
 app.post('/send', async (req, res) => {
     if (!isConnected) {
         return res.status(500).json({ success: false, status: 'error', message: 'WhatsApp હજુ કનેક્ટ નથી થયું' });
@@ -100,11 +103,9 @@ app.post('/send', async (req, res) => {
             return res.status(400).json({ success: false, status: 'error', message: 'મોબાઈલ નંબર આપવો જરૂરી છે' });
         }
 
-        // Baileys માં નંબર પાછળ @s.whatsapp.net લગાવવું પડે છે
         const jid = `${number.replace(/\D/g, '')}@s.whatsapp.net`;
 
         if (mediaBase64 && mediaBase64 !== "") {
-            // ફોટો કે PDF મોકલવાનું લોજીક
             const buffer = Buffer.from(mediaBase64, 'base64');
             let messageOptions = {};
             
@@ -118,7 +119,6 @@ app.post('/send', async (req, res) => {
             
             await sock.sendMessage(jid, messageOptions);
         } else {
-            // માત્ર ટેક્સ્ટ મેસેજ
             await sock.sendMessage(jid, { text: message || "" });
         }
 
