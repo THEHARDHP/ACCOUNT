@@ -20,7 +20,12 @@ const client = new Client({
             '--no-first-run',
             '--no-zygote',
             '--single-process',
-            '--disable-gpu'
+            '--disable-gpu',
+            // નવા વધારાના કમાન્ડ્સ (RAM નો વપરાશ એકદમ ઘટાડવા માટે)
+            '--disable-extensions',
+            '--disable-software-rasterizer',
+            '--mute-audio',
+            '--js-flags="--max-old-space-size=250"' 
         ]
     }
 });
