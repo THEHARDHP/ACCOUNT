@@ -1,14 +1,13 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const express = require('express');
-const qrcode = require('qrcode-terminal');
 
 const app = express();
 
-// Base64 મીડિયા (ફોટો/PDF) માટે લિમિટ વધારી છે જેથી મોટી ફાઈલ મોકલી શકાય
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// WhatsApp Client નું સેટઅપ (512MB RAM માટે ઓપ્ટિમાઇઝ્ડ)
+let latestQR = ""; // નવો વેરીએબલ, જે QR કોડ સાચવશે
+
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -20,24 +19,24 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process', // Render ના 512MB પ્લાન માટે ખૂબ જરૂરી
+            '--single-process',
             '--disable-gpu'
         ]
     }
 });
 
-// QR કોડ ટર્મિનલ (Render ના Logs) માં બતાવવા માટે
+// જ્યારે નવો QR આવે ત્યારે તેને સેવ કરો
 client.on('qr', (qr) => {
-    console.log('આ QR કોડ તમારા WhatsApp થી સ્કેન કરો:');
-    qrcode.generate(qr, { small: true });
+    console.log('✅ નવો QR કોડ જનરેટ થયો છે! તેને જોવા માટે તમારી વેબસાઈટ URL ની પાછળ /qr લગાવીને ખોલો.');
+    latestQR = qr; 
 });
 
-// જ્યારે WhatsApp કનેક્ટ થઈ જાય ત્યારે
+// કનેક્ટ થઈ જાય એટલે QR ડેટા ક્લિયર કરી દો
 client.on('ready', () => {
     console.log('✅ WhatsApp Client રેડી છે અને મેસેજ મોકલવા માટે તૈયાર છે!');
+    latestQR = ""; 
 });
 
-// જો WhatsApp ડિસ્કાનેક્ટ થાય તો
 client.on('disconnected', (reason) => {
     console.log('❌ WhatsApp ડિસ્કાનેક્ટ થયું:', reason);
 });
@@ -46,12 +45,36 @@ client.initialize();
 
 // ================= API ENDPOINTS =================
 
-// 1. સર્વરને જાગતું રાખવા માટે (Google Apps Script માંથી keepServerAwake ફંક્શન માટે)
 app.get('/', (req, res) => {
     res.send('WhatsApp Bot સર્વર ચાલુ છે!');
 });
 
-// 2. મેસેજ મોકલવા માટેની મેઇન API (તમારી Google Sheet આ જ API વાપરે છે)
+// 🌟 નવો રૂટ: બ્રાઉઝરમાં ચોખ્ખો QR કોડ જોવા માટે 🌟
+app.get('/qr', (req, res) => {
+    if (latestQR) {
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(latestQR)}`;
+        res.send(`
+            <html>
+                <body style="display:flex; justify-content:center; align-items:center; height:100vh; background-color:#f8fafc; font-family: sans-serif;">
+                    <div style="text-align:center; background:white; padding:30px; border-radius:15px; box-shadow:0 10px 25px rgba(0,0,0,0.1);">
+                        <h2 style="color: #4F46E5; margin-top:0;">WhatsApp કનેક્ટ કરો</h2>
+                        <img src="${qrImageUrl}" alt="QR Code" style="margin: 20px 0; border: 2px solid #E2E8F0; border-radius: 10px;"/>
+                        <p style="font-size: 16px; font-weight: bold; color: #1E293B;">તમારા મોબાઈલના WhatsApp માંથી આ કોડ સ્કેન કરો.</p>
+                        <p style="font-size:13px; color:#64748B;">(જો કોડ સ્કેન ના થાય, તો પેજને રિફ્રેશ કરો)</p>
+                    </div>
+                </body>
+            </html>
+        `);
+    } else {
+        res.send(`
+            <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+                <h2>હજુ સુધી QR કોડ જનરેટ થયો નથી અથવા WhatsApp ઓલરેડી કનેક્ટેડ છે.</h2>
+                <p>થોડીવાર પછી પેજ <b>રિફ્રેશ (Refresh)</b> કરો.</p>
+            </div>
+        `);
+    }
+});
+
 app.post('/send', async (req, res) => {
     try {
         const { number, message, mediaBase64, mediaName, mediaMime } = req.body;
@@ -60,19 +83,15 @@ app.post('/send', async (req, res) => {
             return res.status(400).json({ success: false, status: 'error', message: 'મોબાઈલ નંબર આપવો જરૂરી છે' });
         }
 
-        // WhatsApp માં નંબર પાછળ @c.us લગાવવું જરૂરી છે
         const chatId = `${number}@c.us`;
 
         if (mediaBase64 && mediaBase64 !== "") {
-            // જો ફોટો કે PDF હોય તો
             const media = new MessageMedia(mediaMime, mediaBase64, mediaName);
             await client.sendMessage(chatId, media, { caption: message || "" });
         } else {
-            // જો ફક્ત ટેક્સ્ટ મેસેજ હોય તો
             await client.sendMessage(chatId, message || "");
         }
 
-        // તમારી Google Script ને Success નો રિપ્લાય આપશે
         res.json({ success: true, status: "success" });
 
     } catch (error) {
@@ -81,7 +100,6 @@ app.post('/send', async (req, res) => {
     }
 });
 
-// સર્વર કયા પોર્ટ પર ચાલશે (Render જાતે PORT ડિસાઇડ કરે છે)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 સર્વર પોર્ટ ${PORT} પર શરૂ થઈ ગયું છે.`);
